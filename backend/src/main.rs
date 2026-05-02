@@ -37,6 +37,7 @@ async fn main() -> anyhow::Result<()> {
         .connect(&database_url)
         .await?;
 
+    ensure_database_schema_exists(&database_pool).await?;
     ensure_default_admin_account_exists(&database_pool).await?;
 
     let app_state = AppState {
@@ -63,6 +64,31 @@ async fn main() -> anyhow::Result<()> {
 
 async fn health() -> &'static str {
     "ok"
+}
+
+async fn ensure_database_schema_exists(database_pool: &sqlx::PgPool) -> anyhow::Result<()> {
+    sqlx::query(r#"CREATE EXTENSION IF NOT EXISTS "uuid-ossp""#)
+        .execute(database_pool)
+        .await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS users (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            username TEXT NOT NULL UNIQUE,
+            email TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+    )
+    .execute(database_pool)
+    .await?;
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at DESC)")
+        .execute(database_pool)
+        .await?;
+
+    Ok(())
 }
 
 async fn ensure_default_admin_account_exists(database_pool: &sqlx::PgPool) -> anyhow::Result<()> {
