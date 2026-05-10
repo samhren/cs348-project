@@ -59,6 +59,13 @@ async function parseResponse<T>(response: Response, fallbackMessage: string): Pr
     const responseBody = await response.text();
     const parsedBody = responseBody ? JSON.parse(responseBody) : null;
 
+    if (response.status === 401) {
+        clearStoredSession();
+        if (typeof window !== "undefined") {
+            window.location.reload();
+        }
+    }
+
     if (!response.ok) {
         throw new Error(parsedBody?.error ?? fallbackMessage);
     }
